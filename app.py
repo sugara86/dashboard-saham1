@@ -17,14 +17,14 @@ if st.button("🔄 Refresh Data"):
 # --- 1. MONITOR KOMODITAS & INDEKS GLOBAL ---
 st.subheader("1. Komoditas & Indeks Global")
 
-global_symbols = {
-    "Timah (Tin)": "TIN=F",
-    "Minyak Mentah (Crude Oil)": "CL=F",
+global_symbol = {
+    "Minyak Mentah": "CL=F",
     "Emas (Gold)": "GC=F",
-    "Tembaga (Copper)": "HG=F",
-    "Dolar (USD/IDR)": "IDR=X",
-    "S&P 500 (US)": "^GSPC",
+    "Tembaga": "HG=F",
+    "Dolar (USD/IDR)": "USDIDR=X",
+    "S&P 500": "^GSPC",
 }
+
 
 
 @st.cache_data(ttl=300)  # Cache data selama 5 menit

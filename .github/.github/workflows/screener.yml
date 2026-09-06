@@ -1,0 +1,29 @@
+name: Auto Saham Screener Bot
+
+on:
+  schedule:
+    # Berjalan setiap 15 menit antara jam 02.00 - 09.00 UTC (09.00 - 16.00 WIB) Senin-Jumat
+    - cron: '*/15 2-8 * * 1-5'
+  workflow_dispatch: # Agar bisa dites jalan manual kapan saja
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: |
+          pip install yfinance pandas requests
+
+      - name: Run Screener
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python telegram_bot.py

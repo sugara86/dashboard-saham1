@@ -1,20 +1,33 @@
+
 import os
 import requests
 
-# Mengambil ID dan Token dari GitHub Secrets
-TOKEN = os.environ.get("TELEGRAM_TOKEN")
-CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
+# Mengambil variabel dari GitHub Secrets
+raw_token = os.environ.get("TELEGRAM_TOKEN", "").strip()
+chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
+
+# Membersihkan token dari spasi atau awalan/akhiran yang salah
+token = raw_token.replace(" ", "")
+if token.startswith("bot"):
+    token = token[3:]
 
 
-def tes_kirim():
-    pesan = "🔥 *HALLO! TES NOTIFIKASI SCREENER BERHASIL!*\n\nSistem GitHub Actions & Bot Telegram kamu sudah 100% terhubung dan siap memburu saham IHSG hari Senin!"
-    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    payload = {"chat_id": CHAT_ID, "text": pesan, "parse_mode": "Markdown"}
+def test_telegram():
+    # Memastikan format URL benar
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
 
+    payload = {
+        "chat_id": chat_id,
+        "text": "🔥 *TES NOTIFIKASI TELEGRAM BERHASIL!*\n\nScript Python kamu sudah 100% terhubung dengan Bot Telegram!",
+        "parse_mode": "Markdown",
+    }
+
+    print("Sending request to Telegram...")
     response = requests.post(url, json=payload)
-    print("Status Code:", response.status_code)
-    print("Response Telegram:", response.text)
+
+    print(f"Status Code: {response.status_code}")
+    print(f"Response Telegram: {response.text}")
 
 
 if __name__ == "__main__":
-    tes_kirim()
+    test_telegram()

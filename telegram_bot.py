@@ -49,7 +49,7 @@ def scan_market():
                 vol_spike = (today_vol / avg_vol) if avg_vol > 0 else 1.0
 
                 # Kriteria Alert Telegram (Naik > 2% DAN Volume Ratio > 1.2x)
-                if change_pct >= 2.0 and vol_spike >= 1.2:
+                if change_pct >= -10.0:  # Kirim semua saham tanpa filter
                     kode = symbol.replace(".JK", "")
                     alerts.append(
                         f"🚀 *ALERTI DAY TRADE: {kode}*\n"

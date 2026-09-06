@@ -20,7 +20,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          pip install yfinance pandas requests
+          pip install yfinance pandas requests matplotlib ta
 
       - name: Run Screener
         env:

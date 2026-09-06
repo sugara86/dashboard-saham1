@@ -1,4 +1,3 @@
-
 import io
 import os
 import xml.etree.ElementTree as ET
@@ -8,30 +7,14 @@ import ta
 import yfinance as yf
 
 # ==========================================
-# 1. KONFIGURASI TELEGRAM (DARI GITHUB SECRETS)
+# 1. KONFIGURASI TELEGRAM & FILE PORTOFOLIO
 # ==========================================
 TOKEN = os.environ.get("TELEGRAM_TOKEN", "").strip()
 CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
+PORTFOLIO_FILE = "portfolio.txt"
 
 # ==========================================
-# 2. DAFTAR PORTOFOLIO SAHAM YANG ANDA PEGANG
-# Ubah harga beli, stop loss, & target jual sesuai kepemilikan Anda
-# ==========================================
-MY_PORTFOLIO = {
-    "ANTM.JK": {
-        "buy_price": 1500,  # Harga rata-rata beli Anda
-        "stop_loss_pct": -2.0,  # Alert jika rugi >= -2%
-        "target_price": 1600,  # Target harga jual (Take Profit)
-    },
-    "MEDC.JK": {
-        "buy_price": 1300,
-        "stop_loss_pct": -2.0,
-        "target_price": 1400,
-    },
-}
-
-# ==========================================
-# 3. DAFTAR SAHAM UNTUK SCREENER DAN GLOBAL
+# 2. DAFTAR SAHAM & PASAR GLOBAL
 # ==========================================
 GLOBAL_MARKETS = {
     "S&P 500 (US)": "^GSPC",
@@ -68,7 +51,7 @@ SAHAM_IHSG = [
 
 
 # ==========================================
-# 4. FUNGSI PENGIRIMAN TELEGRAM
+# 3. FUNGSI TELEGRAM & OTOMATISASI
 # ==========================================
 def clean_token():
     t = TOKEN.replace(" ", "")
@@ -81,7 +64,7 @@ def send_telegram_text(text):
     try:
         requests.post(url, json=payload)
     except Exception as e:
-        print(f"Gagal kirim pesan teks: {e}")
+        print(f"Gagal kirim pesan: {e}")
 
 
 def send_telegram_photo(photo_bytes, caption):
@@ -94,42 +77,43 @@ def send_telegram_photo(photo_bytes, caption):
         print(f"Gagal kirim foto: {e}")
 
 
-# ==========================================
-# 5. FUNGSI MEMBUAT GRAFIK/CHART TEKNIS
-# ==========================================
-def generate_chart(df, ticker):
-    plt.figure(figsize=(8, 5))
+def load_portfolio():
+    """Membaca data portofolio dari file portfolio.txt secara otomatis"""
+    portfolio = {}
+    if not os.path.exists(PORTFOLIO_FILE):
+        return portfolio
 
-    # Subplot 1: Price & MA5
-    plt.subplot(2, 1, 1)
-    plt.plot(df.index[-20:], df["Close"].tail(20), label="Close", color="blue")
-    plt.plot(df.index[-20:], df["MA5"].tail(20), label="MA5", color="orange")
-    plt.title(f"Chart Teknis {ticker.replace('.JK', '')}")
-    plt.legend(loc="upper left")
-    plt.grid(True)
-
-    # Subplot 2: RSI
-    plt.subplot(2, 1, 2)
-    plt.plot(df.index[-20:], df["RSI"].tail(20), label="RSI(14)", color="purple")
-    plt.axhline(70, linestyle="--", color="red", alpha=0.5)  # Overbought
-    plt.axhline(30, linestyle="--", color="green", alpha=0.5)  # Oversold
-    plt.legend(loc="upper left")
-    plt.grid(True)
-
-    plt.tight_layout()
-    buf = io.BytesIO()
-    plt.savefig(buf, format="png")
-    buf.seek(0)
-    plt.close()
-    return buf
+    try:
+        with open(PORTFOLIO_FILE, "r") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                parts = [p.strip() for p in line.split(",")]
+                if len(parts) >= 4:
+                    code = parts[0].upper()
+                    ticker = (
+                        f"{code}.JK" if not code.endswith(".JK") else code
+                    )
+                    portfolio[ticker] = {
+                        "buy_price": float(parts[1]),
+                        "stop_loss_pct": float(parts[2]),
+                        "target_price": float(parts[3]),
+                    }
+    except Exception as e:
+        print(f"Error membaca portfolio.txt: {e}")
+    return portfolio
 
 
-# ==========================================
-# 6. FUNGSI PEMANTAUAN PORTOFOLIO (CUT LOSS & TAKE PROFIT)
-# ==========================================
 def check_portfolio():
-    print("Memeriksa status portofolio saham yang dipegang...")
-    for ticker, info in MY_PORTFOLIO.items():
+    """Memantau Cut Loss / Take Profit dari file portfolio.txt"""
+    my_portfolio = load_portfolio()
+    if not my_portfolio:
+        print("File portfolio.txt kosong atau tidak ditemukan.")
+        return
+
+    print("Memeriksa status portofolio...")
+    for ticker, info in my_portfolio.items():
         try:
             df = yf.Ticker(ticker).history(period="2d")
             if df.empty:
@@ -145,7 +129,7 @@ def check_portfolio():
             if pnl_pct <= info["stop_loss_pct"]:
                 msg = (
                     f"🛑 *ALERT CUT LOSS: {kode}*\n"
-                    f"• Harga Beli Anda: Rp{buy_price:,}\n"
+                    f"• Harga Beli Anda: Rp{buy_price:,.0f}\n"
                     f"• Harga Sekarang: Rp{int(current_price):,}\n"
                     f"• Posisi Rugi: *{pnl_pct:.2f}%*\n\n"
                     f"⚠️ *SARAN:* Pertimbangkan JUAL / CUT LOSS untuk amankan modal!"
@@ -156,19 +140,40 @@ def check_portfolio():
             elif current_price >= target_price:
                 msg = (
                     f"🎯 *ALERT TAKE PROFIT: {kode}*\n"
-                    f"• Harga Beli Anda: Rp{buy_price:,}\n"
+                    f"• Harga Beli Anda: Rp{buy_price:,.0f}\n"
                     f"• Harga Sekarang: Rp{int(current_price):,}\n"
                     f"• Keuntungan: *+{pnl_pct:.2f}%*\n\n"
-                    f"💰 *SARAN:* Target harga Rp{target_price:,} tercapai. Siap-siap JUAL untuk amankan CUAN!"
+                    f"💰 *SARAN:* Target harga Rp{target_price:,.0f} tercapai. Siap-siap JUAL untuk amankan CUAN!"
                 )
                 send_telegram_text(msg)
         except Exception as e:
             print(f"Error portfolio {ticker}: {e}")
 
 
-# ==========================================
-# 7. FUNGSI PASAR GLOBAL & BERITA
-# ==========================================
+def generate_chart(df, ticker):
+    plt.figure(figsize=(8, 5))
+    plt.subplot(2, 1, 1)
+    plt.plot(df.index[-20:], df["Close"].tail(20), label="Close", color="blue")
+    plt.plot(df.index[-20:], df["MA5"].tail(20), label="MA5", color="orange")
+    plt.title(f"Chart Teknis {ticker.replace('.JK', '')}")
+    plt.legend(loc="upper left")
+    plt.grid(True)
+
+    plt.subplot(2, 1, 2)
+    plt.plot(df.index[-20:], df["RSI"].tail(20), label="RSI(14)", color="purple")
+    plt.axhline(70, linestyle="--", color="red", alpha=0.5)
+    plt.axhline(30, linestyle="--", color="green", alpha=0.5)
+    plt.legend(loc="upper left")
+    plt.grid(True)
+
+    plt.tight_layout()
+    buf = io.BytesIO()
+    plt.savefig(buf, format="png")
+    buf.seek(0)
+    plt.close()
+    return buf
+
+
 def get_global_data():
     results = []
     for name, ticker in GLOBAL_MARKETS.items():
@@ -199,16 +204,12 @@ def get_market_news():
     return "\n".join(items)
 
 
-# ==========================================
-# 8. FUNGSI UTAMA (MAIN RUNNER)
-# ==========================================
 def main():
     print("Memulai analisa komprehensif...")
 
-    # 1. Kirim Laporan Global & Berita Lebih Dulu
+    # 1. Dashboard Pasar Global & Berita
     global_text = get_global_data()
     news_text = get_market_news()
-
     header_report = (
         "🌐 *DASHBOARD PASAR GLOBAL & REGIONAL*\n"
         "------------------------------------\n"
@@ -219,11 +220,10 @@ def main():
     )
     send_telegram_text(header_report)
 
-    # 2. Cek Kesehatan Portofolio Pribadi
+    # 2. Cek Portofolio dari File Text
     check_portfolio()
 
-    # 3. Jalankan Screener Saham & Kirim Chart jika Lolos
-    print("Memulai pemindaian saham IHSG...")
+    # 3. Screener Saham Momentum & Chart Teknis
     for ticker in SAHAM_IHSG:
         try:
             df = yf.Ticker(ticker).history(period="2m")
@@ -243,7 +243,6 @@ def main():
             price_change = ((close_now - close_prev) / close_prev) * 100
             vol_ratio = volume_now / volume_avg if volume_avg > 0 else 0
 
-            # Kriteria: Price >= 1.5%, Vol Ratio >= 1.2x, Price > MA5, RSI < 70
             if (
                 price_change >= 1.5
                 and vol_ratio >= 1.2
@@ -252,7 +251,6 @@ def main():
             ):
                 kode = ticker.replace(".JK", "")
                 chart_img = generate_chart(df, ticker)
-
                 caption = (
                     f"🚀 *MOMENTUM SIGNAL: {kode}*\n"
                     f"• Harga: Rp{int(close_now):,}\n"
@@ -263,7 +261,6 @@ def main():
                     f"💡 _Cek Bid/Offer & VWAP di aplikasi sekuritas sebelum entry!_"
                 )
                 send_telegram_photo(chart_img, caption)
-                print(f"Sinyal + Chart terkirim untuk {kode}")
         except Exception as e:
             print(f"Error {ticker}: {e}")
 

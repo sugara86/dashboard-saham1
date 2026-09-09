@@ -14,7 +14,7 @@ CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
 PORTFOLIO_FILE = "portfolio.txt"
 
 # ==========================================
-# 2. DAFTAR SAHAM & PASAR GLOBAL
+# 2. DAFTAR PASAR GLOBAL
 # ==========================================
 GLOBAL_MARKETS = {
     "S&P 500 (US)": "^GSPC",
@@ -26,32 +26,57 @@ GLOBAL_MARKETS = {
     "USD / IDR": "IDR=X",
 }
 
+# ==========================================
+# 3. DAFTAR SAHAM IHSG PERLUASAN (40+ SAHAM AKTIF)
+# ==========================================
 SAHAM_IHSG = [
+    # Perbankan & Big Caps
     "BBCA.JK",
     "BBRI.JK",
     "BMRI.JK",
     "BBNI.JK",
-    "TLKM.JK",
-    "ASII.JK",
+    "BRIS.JK",
+    "ARTO.JK",
+    # Komoditas & Energi
     "ANTM.JK",
-    "PGAS.JK",
-    "UNTR.JK",
-    "AMRT.JK",
-    "GOTO.JK",
+    "MEDC.JK",
     "ADRO.JK",
     "PTBA.JK",
-    "MEDC.JK",
-    "BRIS.JK",
     "MDKA.JK",
+    "PGAS.JK",
+    "AKRA.JK",
+    "MBMA.JK",
+    "AMMN.JK",
+    "INCO.JK",
+    # Industri & Infrastruktur
+    "ASII.JK",
+    "TLKM.JK",
+    "UNTR.JK",
     "INKP.JK",
-    "CPIN.JK",
+    "TKIM.JK",
+    "TPIA.JK",
+    "BRPT.JK",
+    # Konsumer & Ritel
+    "AMRT.JK",
     "ICBP.JK",
+    "INDF.JK",
+    "CPIN.JK",
+    "JPFA.JK",
     "KLBF.JK",
+    "MYOR.JK",
+    # Properti & Lainnya
+    "BSDE.JK",
+    "CTRA.JK",
+    "PWON.JK",
+    "GOTO.JK",
+    "ACES.JK",
+    "ESSA.JK",
+    "AUTO.JK",
 ]
 
 
 # ==========================================
-# 3. FUNGSI TELEGRAM & OTOMATISASI
+# 4. FUNGSI TELEGRAM & OTOMATISASI
 # ==========================================
 def clean_token():
     t = TOKEN.replace(" ", "")
@@ -109,7 +134,7 @@ def check_portfolio():
     """Memantau Cut Loss / Take Profit dari file portfolio.txt"""
     my_portfolio = load_portfolio()
     if not my_portfolio:
-        print("File portfolio.txt kosong atau tidak ditemukan.")
+        print("File portfolio.txt kosong atau belum diisi.")
         return
 
     print("Memeriksa status portofolio...")
@@ -224,6 +249,9 @@ def main():
     check_portfolio()
 
     # 3. Screener Saham Momentum & Chart Teknis
+    signals_sent = 0
+    print("Memulai pemindaian saham IHSG...")
+
     for ticker in SAHAM_IHSG:
         try:
             df = yf.Ticker(ticker).history(period="2m")
@@ -243,26 +271,35 @@ def main():
             price_change = ((close_now - close_prev) / close_prev) * 100
             vol_ratio = volume_now / volume_avg if volume_avg > 0 else 0
 
+            # Kriteria Disesuaikan (Lebih Sensitif Agar Sinyal Selalu Muncul):
+            # Kenaikan >= 0.8%, Volume >= 1.0x, Harga > MA5, RSI < 75
             if (
-                price_change >= 1.5
-                and vol_ratio >= 1.2
+                price_change >= 0.8
+                and vol_ratio >= 1.0
                 and close_now > ma5_now
-                and rsi_now < 70
+                and rsi_now < 75
             ):
                 kode = ticker.replace(".JK", "")
                 chart_img = generate_chart(df, ticker)
                 caption = (
-                    f"🚀 *MOMENTUM SIGNAL: {kode}*\n"
+                    f"🚀 *REKOMENDASI/MOMENTUM: {kode}*\n"
                     f"• Harga: Rp{int(close_now):,}\n"
                     f"• Kenaikan: *+{price_change:.2f}%*\n"
                     f"• Vol Ratio: *{vol_ratio:.2f}x*\n"
-                    f"• RSI (14): *{rsi_now:.1f}* (Zona Aman < 70)\n"
+                    f"• RSI (14): *{rsi_now:.1f}* (Zona Aman)\n"
                     f"• Posisi: Di atas MA5\n\n"
-                    f"💡 _Cek Bid/Offer & VWAP di aplikasi sekuritas sebelum entry!_"
+                    f"💡 _Cek Bid/Offer & VWAP di Stokbit sebelum entry!_"
                 )
                 send_telegram_photo(chart_img, caption)
+                signals_sent += 1
         except Exception as e:
             print(f"Error {ticker}: {e}")
+
+    # Jika tidak ada satu pun saham lolos kriteria, kirim laporan ringkas
+    if signals_sent == 0:
+        send_telegram_text(
+            "ℹ️ *INFO SCREENER:* Hari ini kondisi pasar sangat lambat / belum ada saham dari daftar pindaian yang menyentuh kriteria ideal."
+        )
 
 
 if __name__ == "__main__":
